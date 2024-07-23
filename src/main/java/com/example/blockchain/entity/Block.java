@@ -13,11 +13,11 @@ public class Block {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column
+    @PrimaryKeyJoinColumn
     @OneToOne
     private BlockHeader header;
 
-    @Column
+    @PrimaryKeyJoinColumn
     @OneToOne
     private BlockPayload payload;
 
