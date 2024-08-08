@@ -26,6 +26,8 @@ public class BlockService {
     }
 
     public String saveAllTransactionsInBlock(List<Transaction> transactions) {
+        Block previusBlock = blockRepository.findLastBlockById();
+        transactions.add(new Transaction(previusBlock.getPreviusHash()));
         String hashBlock = RSAEncryption
                 .createBlockHash(
                         transactions
@@ -35,18 +37,19 @@ public class BlockService {
         var block = new Block();
         block.setTransactions(transactions);
         block.setHashBlock(hashBlock);
-        Block previusBlock = blockRepository.findLastBlockById();
         block.setPreviusHash(previusBlock.getHashBlock());
         var response =  blockRepository.save(block);
         return response.getHashBlock();
     }
 
-    public Block createGenesisBlock() {
+    public void createGenesisBlock() {
         Block genesisBlock = new Block();
         var genesisTransaction = new ArrayList<String>();
         genesisTransaction.add("GENESIS");
+//        genesisBlock.setPreviusHash("GENESIS");
+//        genesisTransaction.add(genesisBlock.getPreviusHash());
         genesisBlock.setHashBlock(RSAEncryption.createBlockHash(genesisTransaction));
-        return blockRepository.save(genesisBlock);
+        blockRepository.save(genesisBlock);
     }
 
     public boolean blocksAreEmpty() {
