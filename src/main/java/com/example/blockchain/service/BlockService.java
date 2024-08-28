@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,18 +27,18 @@ public class BlockService {
     }
 
     public String saveAllTransactionsInBlock(List<Transaction> transactions) {
-        Block previusBlock = blockRepository.findLastBlockById();
-        transactions.add(new Transaction(previusBlock.getPreviusHash()));
-        String hashBlock = RSAEncryption
-                .createBlockHash(
-                        transactions
-                                .stream()
-                                .map(Transaction::getHashedContent)
-                                .collect(Collectors.toList()));
+        List<String> hashList = new ArrayList<>();
+        transactions.forEach(transaction -> hashList.add(transaction.getHash()));
+
+        String previusHashBlock = blockRepository.findLastBlockById().getHashBlock();
+        hashList.add(previusHashBlock);
+        String hashBlock = RSAEncryption.createHash(hashList);
+
         var block = new Block();
         block.setTransactions(transactions);
         block.setHashBlock(hashBlock);
-        block.setPreviusHash(previusBlock.getHashBlock());
+        block.setPreviusHash(previusHashBlock);
+
         var response =  blockRepository.save(block);
         return response.getHashBlock();
     }
@@ -46,9 +47,7 @@ public class BlockService {
         Block genesisBlock = new Block();
         var genesisTransaction = new ArrayList<String>();
         genesisTransaction.add("GENESIS");
-//        genesisBlock.setPreviusHash("GENESIS");
-//        genesisTransaction.add(genesisBlock.getPreviusHash());
-        genesisBlock.setHashBlock(RSAEncryption.createBlockHash(genesisTransaction));
+        genesisBlock.setHashBlock(RSAEncryption.createHash(genesisTransaction));
         blockRepository.save(genesisBlock);
     }
 

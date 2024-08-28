@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.Base64;
+
 @Entity
 @Getter
 @Setter
@@ -17,9 +19,27 @@ public class Transaction {
     private Long id;
 
     @Column
-    private String hashedContent;
+    private String hash;
 
-    public Transaction (String hashedContent) {
+
+    @Column
+    @Lob
+    private byte[] hashedContent;
+
+    @Column(length = 500)
+    private String owner;
+
+    public Transaction (byte[] hashedContent) {
         this.hashedContent = hashedContent;
+    }
+
+    public Transaction (byte[] hashedContent, String hash, String owner) {
+        this.hashedContent = hashedContent;
+        this.hash = hash;
+        this.owner = owner;
+    }
+
+    public Transaction (String hash) {
+        this.hash = hash;
     }
 }

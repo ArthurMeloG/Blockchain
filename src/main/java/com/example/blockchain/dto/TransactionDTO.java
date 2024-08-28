@@ -8,7 +8,9 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 public class TransactionDTO {
-    private String base64Pdf;
+    private byte[] base64Pdf;
+    private String hash;
     private String privateKey;
     private String publicKey;
+    private String owner;
 }

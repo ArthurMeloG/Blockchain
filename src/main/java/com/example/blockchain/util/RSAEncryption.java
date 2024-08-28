@@ -1,6 +1,9 @@
 package com.example.blockchain.util;
 
 import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.security.*;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -9,36 +12,44 @@ import java.util.List;
 
 public class RSAEncryption {
 
-    private static final int KEY_SIZE = 512;
+    private static final int AES_KEY_SIZE = 256;
+    private static final String AES_ALGORITHM = "AES";
+    private static final String AES_TRANSFORMATION = "AES/ECB/PKCS5Padding";
+    private static final int RSA_KEY_SIZE = 2048;
 
-    public static String encrypt(String data, String base64PublicKey) throws Exception {
-        byte[] publicKeyBytes = Base64.getDecoder().decode(base64PublicKey);
+    // Encrypts byte[] data with AES, then encrypts the AES key with RSA
+    public static byte[] encrypt(byte[] data, String base64PublicKey) throws Exception {
+        // Generate AES key
+        String aesKey = generateAESKey();
 
-        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicKeyBytes);
-        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-        PublicKey publicKey = keyFactory.generatePublic(keySpec);
+        // Encrypt the data using AES
+        byte[] encryptedData = encryptAES(data, aesKey);
 
-        Cipher cipher = Cipher.getInstance("RSA");
-        cipher.init(Cipher.ENCRYPT_MODE, publicKey);
+        // Encrypt the AES key using RSA
+        byte[] encryptedAESKey = encryptRSA(aesKey.getBytes("UTF-8"), base64PublicKey);
 
-        byte[] encryptedBytes = cipher.doFinal(data.getBytes("UTF-8"));
-        return Base64.getEncoder().encodeToString(encryptedBytes);
+        // Combine the encrypted AES key and the encrypted data
+        byte[] combined = new byte[encryptedAESKey.length + encryptedData.length];
+        System.arraycopy(encryptedAESKey, 0, combined, 0, encryptedAESKey.length);
+        System.arraycopy(encryptedData, 0, combined, encryptedAESKey.length, encryptedData.length);
+
+        return combined;
     }
 
-    public static String decrypt(String encryptedData, String base64PrivateKey) throws Exception {
-        byte[] privateKeyBytes = Base64.getDecoder().decode(base64PrivateKey);
+    // Decrypts byte[] data by first decrypting the AES key with RSA, then using the AES key to decrypt the data
+    public static byte[] decrypt(byte[] encryptedData, String base64PrivateKey) throws Exception {
+        // Assuming the first part of encryptedData is the encrypted AES key, and the rest is the encrypted content
+        byte[] encryptedAESKey = new byte[RSA_KEY_SIZE / 8]; // RSA key size divided by 8 gives the byte length
+        byte[] encryptedContent = new byte[encryptedData.length - encryptedAESKey.length];
 
-        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
-        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-        PrivateKey privateKey = keyFactory.generatePrivate(keySpec);
+        System.arraycopy(encryptedData, 0, encryptedAESKey, 0, encryptedAESKey.length);
+        System.arraycopy(encryptedData, encryptedAESKey.length, encryptedContent, 0, encryptedContent.length);
 
-        Cipher cipher = Cipher.getInstance("RSA");
-        cipher.init(Cipher.DECRYPT_MODE, privateKey);
+        // Decrypt the AES key using RSA
+        byte[] aesKeyBytes = decryptRSA(encryptedAESKey, base64PrivateKey);
 
-        byte[] encryptedBytes = Base64.getDecoder().decode(encryptedData);
-
-        byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
-        return new String(decryptedBytes, "UTF-8");
+        // Decrypt the data using AES
+        return decryptAES(encryptedContent, new String(aesKeyBytes, "UTF-8"));
     }
 
     public static KeyPair generateKeyPair()  {
@@ -48,11 +59,58 @@ public class RSAEncryption {
         } catch (NoSuchAlgorithmException noSuchAlgorithmException) {
             throw new RuntimeException();
         }
-        keyPairGenerator.initialize(KEY_SIZE);
+        keyPairGenerator.initialize(RSA_KEY_SIZE);
         return keyPairGenerator.generateKeyPair();
     }
 
-    public static String createBlockHash(List<String> hashes) {
+    private static byte[] encryptAES(byte[] data, String aesKey) throws Exception {
+        SecretKey secretKey = new SecretKeySpec(Base64.getDecoder().decode(aesKey), AES_ALGORITHM);
+        Cipher cipher = Cipher.getInstance(AES_TRANSFORMATION);
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+        return cipher.doFinal(data);
+    }
+
+    private static byte[] decryptAES(byte[] encryptedData, String aesKey) throws Exception {
+        SecretKey secretKey = new SecretKeySpec(Base64.getDecoder().decode(aesKey), AES_ALGORITHM);
+        Cipher cipher = Cipher.getInstance(AES_TRANSFORMATION);
+        cipher.init(Cipher.DECRYPT_MODE, secretKey);
+        return cipher.doFinal(encryptedData);
+    }
+
+    private static byte[] encryptRSA(byte[] data, String base64PublicKey) throws Exception {
+        byte[] publicKeyBytes = Base64.getDecoder().decode(base64PublicKey);
+
+        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicKeyBytes);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+        PublicKey publicKey = keyFactory.generatePublic(keySpec);
+
+        Cipher cipher = Cipher.getInstance("RSA");
+        cipher.init(Cipher.ENCRYPT_MODE, publicKey);
+
+        return cipher.doFinal(data);
+    }
+
+    private static byte[] decryptRSA(byte[] encryptedData, String base64PrivateKey) throws Exception {
+        byte[] privateKeyBytes = Base64.getDecoder().decode(base64PrivateKey);
+
+        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+        PrivateKey privateKey = keyFactory.generatePrivate(keySpec);
+
+        Cipher cipher = Cipher.getInstance("RSA");
+        cipher.init(Cipher.DECRYPT_MODE, privateKey);
+
+        return cipher.doFinal(encryptedData);
+    }
+
+    private static String generateAESKey() throws Exception {
+        KeyGenerator keyGen = KeyGenerator.getInstance(AES_ALGORITHM);
+        keyGen.init(AES_KEY_SIZE);
+        SecretKey secretKey = keyGen.generateKey();
+        return Base64.getEncoder().encodeToString(secretKey.getEncoded());
+    }
+
+    public static String createHash(List<String> hashes) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
 
@@ -81,5 +139,4 @@ public class RSAEncryption {
 
         return hexString.toString();
     }
-
 }
